@@ -1,0 +1,20 @@
+name: Setup Typsite
+description: Install Typsite and add it to the PATH using corresponding package manager
+
+branding:
+  icon: terminal
+  color: white
+
+inputs:
+  version:
+    description: "which version to install"
+    required: false
+    default: latest
+
+outputs:
+  version:
+    description: "The installed typsite version."
+
+runs:
+  using: node20
+  main: dist/index.js
