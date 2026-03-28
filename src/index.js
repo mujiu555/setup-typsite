@@ -1,5 +1,4 @@
 import * as core from '@actions/core';
-import * as github from '@actions/github';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import https from 'node:https';
@@ -95,7 +94,7 @@ function scoreAsset(name, platform, candidates) {
   return score;
 }
 
-async function downloadToFile(url, destination, headers, redirects = 0) {
+async function downloadToFile(url, destination, headers = {}, redirects = 0) {
   if (redirects > 5) {
     throw new Error(`Too many redirects while downloading ${url}`);
   }
@@ -127,6 +126,50 @@ async function downloadToFile(url, destination, headers, redirects = 0) {
 
     request.on('error', reject);
   });
+}
+
+async function fetchJson(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        body += chunk;
+      });
+      response.on('end', () => {
+        if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) {
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(new Error(`Failed to parse JSON from ${url}`));
+          }
+          return;
+        }
+
+        if (response.statusCode === 404) {
+          const notFoundError = new Error(`Not found: ${url}`);
+          notFoundError.status = 404;
+          reject(notFoundError);
+          return;
+        }
+
+        reject(new Error(`GitHub API request failed (${response.statusCode}): ${body}`));
+      });
+    });
+
+    request.on('error', reject);
+  });
+}
+
+function buildGithubHeaders(token) {
+  const headers = {
+    'user-agent': 'setup-typsite-action',
+    accept: 'application/vnd.github+json',
+  };
+  if (token) {
+    headers.authorization = `token ${token}`;
+  }
+  return headers;
 }
 
 async function extractArchive(archivePath, destination, platform) {
@@ -197,13 +240,12 @@ async function findBinary(searchDir, platform) {
   return null;
 }
 
-async function resolveRelease(octokit, versionInput) {
+async function resolveRelease(token, versionInput) {
+  const baseUrl = `https://api.github.com/repos/${OWNER}/${REPO}/releases`;
+  const headers = buildGithubHeaders(token);
+
   if (versionInput === 'latest') {
-    const { data } = await octokit.rest.repos.getLatestRelease({
-      owner: OWNER,
-      repo: REPO,
-    });
-    return data;
+    return fetchJson(`${baseUrl}/latest`, headers);
   }
 
   const candidateTags = [];
@@ -215,12 +257,7 @@ async function resolveRelease(octokit, versionInput) {
 
   for (const tag of candidateTags) {
     try {
-      const { data } = await octokit.rest.repos.getReleaseByTag({
-        owner: OWNER,
-        repo: REPO,
-        tag,
-      });
-      return data;
+      return await fetchJson(`${baseUrl}/tags/${encodeURIComponent(tag)}`, headers);
     } catch (error) {
       if (error.status !== 404) {
         throw error;
@@ -234,8 +271,9 @@ async function resolveRelease(octokit, versionInput) {
 async function run() {
   const rawVersionInput = core.getInput('version');
   const versionInput = rawVersionInput && rawVersionInput.trim() ? rawVersionInput.trim() : 'latest';
-  const token = process.env.GITHUB_TOKEN || '';
-  const octokit = github.getOctokit(token);
+  const inputToken = core.getInput('github-token');
+  const tokenCandidate = inputToken && inputToken.trim() ? inputToken.trim() : process.env.GITHUB_TOKEN;
+  const token = tokenCandidate && tokenCandidate.trim() ? tokenCandidate.trim() : '';
 
   const platform = os.platform();
   const arch = os.arch();
@@ -246,7 +284,7 @@ async function run() {
   }
 
   core.info(`Resolving typsite ${versionInput} release...`);
-  const release = await resolveRelease(octokit, versionInput);
+  const release = await resolveRelease(token, versionInput);
   const assets = release.assets || [];
 
   if (!assets.length) {
@@ -276,7 +314,8 @@ async function run() {
   core.info(`Downloading ${bestAsset.name}...`);
   const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'typsite-'));
   const downloadPath = path.join(tempDir, bestAsset.name);
-  await downloadToFile(bestAsset.browser_download_url, downloadPath);
+  const downloadHeaders = token ? { authorization: `token ${token}` } : {};
+  await downloadToFile(bestAsset.browser_download_url, downloadPath, downloadHeaders);
 
   let binaryPath = null;
   if (bestAsset.name.endsWith('.zip') || bestAsset.name.endsWith('.tar.gz') || bestAsset.name.endsWith('.tgz')) {

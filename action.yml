@@ -10,9 +10,10 @@ inputs:
     description: "Which version to install."
     required: false
     default: latest
-  token:
-    description: "Github token to use"
-    required: true
+  github-token:
+    description: "GitHub token for API requests (optional)."
+    required: false
+    default: ""
 
 outputs:
   version:
