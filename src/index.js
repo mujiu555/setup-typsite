@@ -141,6 +141,7 @@ async function extractArchive(archivePath, destination, platform) {
         `Expand-Archive -Path "${archivePath}" -DestinationPath "${destination}" -Force`,
       ]);
     } else {
+      await ensureTool('unzip');
       await execFileAsync('unzip', ['-q', archivePath, '-d', destination]);
     }
     return;
@@ -148,11 +149,24 @@ async function extractArchive(archivePath, destination, platform) {
 
   if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
     await fsPromises.mkdir(destination, { recursive: true });
+    await ensureTool('tar');
     await execFileAsync('tar', ['-xzf', archivePath, '-C', destination]);
     return;
   }
 
   throw new Error(`Unsupported archive format: ${archivePath}`);
+}
+
+async function ensureTool(tool) {
+  if (os.platform() === 'win32') {
+    return;
+  }
+
+  try {
+    await execFileAsync('which', [tool]);
+  } catch (error) {
+    throw new Error(`Required tool "${tool}" not found on PATH. Please install it and retry.`);
+  }
 }
 
 async function findBinary(searchDir, platform) {
@@ -218,7 +232,8 @@ async function resolveRelease(octokit, versionInput) {
 }
 
 async function run() {
-  const versionInput = core.getInput('version') || 'latest';
+  const rawVersionInput = core.getInput('version');
+  const versionInput = rawVersionInput && rawVersionInput.trim() ? rawVersionInput.trim() : 'latest';
   const token = process.env.GITHUB_TOKEN || '';
   const octokit = github.getOctokit(token);
 
