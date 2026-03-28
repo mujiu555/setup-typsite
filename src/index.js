@@ -330,6 +330,14 @@ async function run() {
     throw new Error(`Downloaded asset does not contain a typsite binary: ${bestAsset.name}`);
   }
 
+  const expectedName = platform === 'win32' ? 'typsite.exe' : 'typsite';
+  const currentName = path.basename(binaryPath);
+  if (currentName !== expectedName) {
+    const renamedPath = path.join(path.dirname(binaryPath), expectedName);
+    await fsPromises.copyFile(binaryPath, renamedPath);
+    binaryPath = renamedPath;
+  }
+
   if (platform !== 'win32') {
     await fsPromises.chmod(binaryPath, 0o755);
   }
