@@ -28,3 +28,4 @@ jobs:
 
 - This action downloads release assets from `Glomzzz/typsite` and selects the best match for the runner OS/arch.
 - On Windows, it uses PowerShell `Expand-Archive`. On macOS/Linux, it uses `unzip`/`tar`.
+- The action entrypoint is bundled into `dist/` using `@vercel/ncc`.
