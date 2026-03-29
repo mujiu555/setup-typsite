@@ -4,7 +4,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "build": "ncc build src/index.js -o dist",
+    "build": "ncc build src/index.js -o dist && ncc build src/post.js -o dist/post",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -13,7 +13,8 @@
   "description": "",
   "dependencies": {
     "@actions/core": "^2.0.1",
-    "@actions/github": "^6.0.1"
+    "@actions/github": "^6.0.1",
+    "@actions/io": "^1.1.3"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4"

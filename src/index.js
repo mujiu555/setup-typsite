@@ -313,6 +313,7 @@ async function run() {
 
   core.info(`Downloading ${bestAsset.name}...`);
   const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'typsite-'));
+  core.saveState('tempDir', tempDir);
   const downloadPath = path.join(tempDir, bestAsset.name);
   const downloadHeaders = token ? { authorization: `token ${token}` } : {};
   await downloadToFile(bestAsset.browser_download_url, downloadPath, downloadHeaders);
